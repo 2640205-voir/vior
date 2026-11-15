@@ -1,8 +1,10 @@
 import type {
   FlightInputState,
   LaunchPhase,
+  ShuttleFuelSpec,
   ShuttleMaterialSpec,
 } from '../types/game';
+import { SHUTTLE_FUELS } from './materials';
 
 export const MISSION2_DURATION_SEC = 60;
 export const MOON_INITIAL_DISTANCE_KM = 384_400;
@@ -50,7 +52,8 @@ export function createInitialLaunchState(material: ShuttleMaterialSpec): LaunchP
 export function stepLaunchPhysics(
   state: LaunchPhysicsState,
   material: ShuttleMaterialSpec,
-  dt: number
+  dt: number,
+  fuelSpec: ShuttleFuelSpec = SHUTTLE_FUELS.STANDARD_LOX
 ): LaunchPhysicsState {
   if (state.failed || state.completed) return state;
 
@@ -59,11 +62,12 @@ export function stepLaunchPhysics(
 
   // Ignition spool-up during first 2.2 seconds
   const spoolFactor = Math.min(1, elapsedSec / 2.2);
-  const maxThrust = BASE_ENGINE_THRUST_N * material.thrustMultiplier;
+  const maxThrust = BASE_ENGINE_THRUST_N * material.thrustMultiplier * fuelSpec.thrustMultiplier;
   const thrustN = maxThrust * (0.25 + 0.75 * spoolFactor);
 
-  // Fuel decreases over time proportional to thrust and material burn multiplier
-  const fuelBurnRate = 3.1 * material.fuelBurnMultiplier * (0.3 + 0.7 * spoolFactor);
+  // Fuel decreases over time proportional to thrust, material, and propellant burn multipliers
+  const fuelBurnRate =
+    3.1 * material.fuelBurnMultiplier * fuelSpec.burnRateMultiplier * (0.3 + 0.7 * spoolFactor);
   const fuelPercent = Math.max(0, state.fuelPercent - fuelBurnRate * clampedDt);
 
   // Dynamic mass decreases slightly as propellant burns (up to 18% lighter at empty)

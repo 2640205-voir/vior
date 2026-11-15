@@ -1,5 +1,7 @@
 export type MaterialId = 'ALUMINIUM' | 'SILVER' | 'GOLD' | 'TITANIUM' | 'IRON';
 
+export type FuelId = 'STANDARD_LOX' | 'CRYO_LH2' | 'HYPER_PROP';
+
 export type GameScreen =
   | 'loading'
   | 'menu'
@@ -47,6 +49,8 @@ export interface ShuttleMaterialSpec {
   thrustMultiplier: number;
   /** Max lateral maneuver agility in Mission 2 */
   agilityMultiplier: number;
+  /** Hull manufacturing cost in USD millions */
+  materialCostMillions: number;
   /** PBR visual properties */
   colorHex: number;
   swatchCss: string;
@@ -55,6 +59,16 @@ export interface ShuttleMaterialSpec {
   clearcoat: number;
   anisotropy: number;
   envMapIntensity: number;
+}
+
+export interface ShuttleFuelSpec {
+  id: FuelId;
+  name: string;
+  subtitle: string;
+  fuelCostMillions: number;
+  burnRateMultiplier: number;
+  thrustMultiplier: number;
+  efficiencyLabel: string;
 }
 
 export interface GameSettings {
@@ -68,6 +82,7 @@ export interface GameProgress {
   missionsCompleted: number;
   bestFlightTime: number | null;
   lastMaterial: MaterialId;
+  lastFuel: FuelId;
   part2CompletedCount: number;
 }
 
@@ -80,6 +95,11 @@ export interface Mission1Telemetry {
   weightKn: number;
   vibration: number;
   failed: boolean;
+  fuelName: string;
+  materialCostMillions: number;
+  fuelCostMillions: number;
+  fuelBurnCostMillions: number;
+  totalCostMillions: number;
 }
 
 export interface Mission2Telemetry {
@@ -114,6 +134,11 @@ export interface FlightInputState {
 
 export interface CompletedMissionStats {
   material: MaterialId;
+  fuelName?: string;
+  materialCostMillions?: number;
+  fuelCostMillions?: number;
+  fuelBurnCostMillions?: number;
+  totalCostMillions?: number;
   flightDurationSec: number;
   obstaclesAvoided: number;
   shieldHitsTaken: number;

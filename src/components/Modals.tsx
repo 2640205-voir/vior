@@ -135,6 +135,35 @@ export function Modals({
               <dt className="text-slate-400">Shuttle Material</dt>
               <dd className="font-display text-sky-300 font-semibold">{missionCompleteStats.material}</dd>
             </div>
+            {typeof missionCompleteStats.materialCostMillions === 'number' && (
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-400">Material Cost</dt>
+                <dd className="font-mono-tabular text-amber-300 font-semibold">
+                  ${missionCompleteStats.materialCostMillions.toFixed(1)}M
+                </dd>
+              </div>
+            )}
+            {typeof missionCompleteStats.fuelCostMillions === 'number' && (
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-400">
+                  Propellant ({missionCompleteStats.fuelName ?? 'LOX / RP-1'})
+                </dt>
+                <dd className="font-mono-tabular text-sky-300 font-semibold">
+                  ${missionCompleteStats.fuelCostMillions.toFixed(1)}M
+                  {typeof missionCompleteStats.fuelBurnCostMillions === 'number'
+                    ? ` (${missionCompleteStats.fuelBurnCostMillions.toFixed(1)}M burned)`
+                    : ''}
+                </dd>
+              </div>
+            )}
+            {typeof missionCompleteStats.totalCostMillions === 'number' && (
+              <div className="flex items-center justify-between">
+                <dt className="text-slate-400">Total Mission Cost</dt>
+                <dd className="font-mono-tabular text-emerald-300 font-bold">
+                  ${missionCompleteStats.totalCostMillions.toFixed(1)}M
+                </dd>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <dt className="text-slate-400">Flight Duration</dt>
               <dd className="font-mono-tabular text-white font-semibold">{missionCompleteStats.flightDurationSec}s</dd>

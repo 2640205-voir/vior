@@ -98,6 +98,20 @@ export function MissionHUD({
               <span>Thrust: {mission1.thrustKn.toLocaleString()} kN</span>
               <span>Weight: {mission1.weightKn.toLocaleString()} kN</span>
             </div>
+            <div className="mt-2 pt-2 border-t border-sky-500/20 grid grid-cols-3 gap-2 text-[10px] font-mono-tabular">
+              <div>
+                <span className="block uppercase text-slate-400">Hull Cost</span>
+                <span className="text-amber-300 font-bold">${mission1.materialCostMillions.toFixed(1)}M</span>
+              </div>
+              <div>
+                <span className="block uppercase text-slate-400">Fuel Burn</span>
+                <span className="text-sky-300 font-bold">${mission1.fuelBurnCostMillions.toFixed(1)}M</span>
+              </div>
+              <div>
+                <span className="block uppercase text-slate-400">Total Cost</span>
+                <span className="text-emerald-300 font-bold">${mission1.totalCostMillions.toFixed(1)}M</span>
+              </div>
+            </div>
           </div>
         )}
 

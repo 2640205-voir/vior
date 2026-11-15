@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SHUTTLE_MATERIALS } from './materials';
+import {
+  calculateLaunchCostBreakdown,
+  SHUTTLE_FUELS,
+  SHUTTLE_MATERIALS,
+} from './materials';
 import {
   applyShieldHit,
   checkSphereCollision,
@@ -153,4 +157,43 @@ test('Collision detection and 3-hit shield failure work properly', () => {
 test('Lunar landing pad center is flat at y=0 for flush touchdown', () => {
   assert.equal(lunarTerrainHeight(0, 0), 0);
   assert.equal(lunarTerrainHeight(3, 3), 0);
+});
+
+test('Part 1 material and fuel costing computes accurate totals, budget status, and burn cost', () => {
+  const alum = SHUTTLE_MATERIALS.ALUMINIUM;
+  const tit = SHUTTLE_MATERIALS.TITANIUM;
+  const gold = SHUTTLE_MATERIALS.GOLD;
+  const stdFuel = SHUTTLE_FUELS.STANDARD_LOX;
+  const cryoFuel = SHUTTLE_FUELS.CRYO_LH2;
+
+  const alumCost = calculateLaunchCostBreakdown(alum, stdFuel, 100);
+  assert.equal(alumCost.materialCostMillions, 45);
+  assert.equal(alumCost.fuelTankCostMillions, 24);
+  assert.equal(alumCost.totalLaunchCostMillions, 69);
+  assert.equal(alumCost.withinBudget, true);
+
+  const titCryo = calculateLaunchCostBreakdown(tit, cryoFuel, 75);
+  assert.equal(titCryo.materialCostMillions, 128);
+  assert.equal(titCryo.fuelTankCostMillions, 34);
+  assert.equal(titCryo.totalLaunchCostMillions, 162);
+  assert.equal(titCryo.fuelBurnedPercent, 25);
+  assert.equal(titCryo.fuelBurnCostMillions, 8.5);
+  assert.equal(titCryo.withinBudget, true);
+
+  const goldCost = calculateLaunchCostBreakdown(gold, stdFuel, 100);
+  assert.equal(goldCost.withinBudget, false);
+  assert.ok(goldCost.totalLaunchCostMillions > titCryo.totalLaunchCostMillions);
+});
+
+test('CRYO_LH2 burns less fuel than HYPER_PROP during Mission 1 ascent', () => {
+  const tit = SHUTTLE_MATERIALS.TITANIUM;
+  let cryoState = createInitialLaunchState(tit);
+  let hyperState = createInitialLaunchState(tit);
+
+  for (let i = 0; i < 160; i++) {
+    cryoState = stepLaunchPhysics(cryoState, tit, 0.05, SHUTTLE_FUELS.CRYO_LH2);
+    hyperState = stepLaunchPhysics(hyperState, tit, 0.05, SHUTTLE_FUELS.HYPER_PROP);
+  }
+
+  assert.ok(cryoState.fuelPercent > hyperState.fuelPercent, 'Cryo LH2 should conserve more fuel');
 });

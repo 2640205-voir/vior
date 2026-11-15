@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import gsap from 'gsap';
 import { SpaceAudioEngine } from '../game/audio';
-import { SHUTTLE_MATERIALS } from '../game/materials';
+import { calculateLaunchCostBreakdown, SHUTTLE_FUELS, SHUTTLE_MATERIALS } from '../game/materials';
 import {
   applyShieldHit,
   checkSphereCollision,
@@ -20,6 +20,7 @@ import {
 import type {
   CompletedMissionStats,
   FlightInputState,
+  FuelId,
   GameScreen,
   GraphicsQuality,
   LandingPhase,
@@ -88,6 +89,7 @@ export class SpaceGameEngine {
   private screen: GameScreen = 'loading';
   private paused = false;
   private selectedMaterial: MaterialId = 'TITANIUM';
+  private selectedFuel: FuelId = 'STANDARD_LOX';
   private quality: GraphicsQuality = 'high';
 
   private frameId = 0;
@@ -128,6 +130,7 @@ export class SpaceGameEngine {
   private lastCompletedFlightSec = MISSION2_DURATION_SEC;
   private lastObstaclesAvoided = 0;
   private lastShieldHitsTaken = 0;
+  private lastLaunchFuelBurnCostMillions = 0;
   private landingTimeline: gsap.core.Timeline | null = null;
 
   private readonly resizeObserver: ResizeObserver;
@@ -137,13 +140,15 @@ export class SpaceGameEngine {
     audio: SpaceAudioEngine,
     callbacks: EngineCallbacks,
     initialQuality: GraphicsQuality,
-    initialMaterial: MaterialId
+    initialMaterial: MaterialId,
+    initialFuel: FuelId = 'STANDARD_LOX'
   ) {
     this.container = container;
     this.audio = audio;
     this.callbacks = callbacks;
     this.quality = initialQuality;
     this.selectedMaterial = initialMaterial;
+    this.selectedFuel = initialFuel;
 
     this.isSoftwareGl = (() => {
       try {
@@ -344,6 +349,10 @@ export class SpaceGameEngine {
   public setMaterial(id: MaterialId): void {
     this.selectedMaterial = id;
     this.shuttle.setMaterial(id);
+  }
+
+  public setFuel(id: FuelId): void {
+    this.selectedFuel = id;
   }
 
   public setPaused(paused: boolean): void {
@@ -728,8 +737,24 @@ export class SpaceGameEngine {
         this.landingPhase = 'settled';
         this.screen = 'complete';
         this.audio.playMissionComplete();
+        const matSpec = SHUTTLE_MATERIALS[this.selectedMaterial];
+        const fuelSpec = SHUTTLE_FUELS[this.selectedFuel];
+        const estCost = calculateLaunchCostBreakdown(
+          matSpec,
+          fuelSpec,
+          100 - Math.min(100, (this.lastLaunchFuelBurnCostMillions / fuelSpec.fuelCostMillions) * 100)
+        );
+        const fuelBurnCost =
+          this.lastLaunchFuelBurnCostMillions > 0
+            ? this.lastLaunchFuelBurnCostMillions
+            : estCost.estimatedAscentFuelCostMillions;
         this.callbacks.onMission3Complete({
           material: this.selectedMaterial,
+          fuelName: fuelSpec.name,
+          materialCostMillions: matSpec.materialCostMillions,
+          fuelCostMillions: fuelSpec.fuelCostMillions,
+          fuelBurnCostMillions: Number(fuelBurnCost.toFixed(1)),
+          totalCostMillions: Number((matSpec.materialCostMillions + fuelSpec.fuelCostMillions).toFixed(1)),
           flightDurationSec: Math.round(this.lastCompletedFlightSec),
           obstaclesAvoided: this.lastObstaclesAvoided,
           shieldHitsTaken: this.lastShieldHitsTaken,
@@ -872,10 +897,11 @@ export class SpaceGameEngine {
 
   private updateMission1(dt: number): void {
     const matSpec = SHUTTLE_MATERIALS[this.selectedMaterial];
+    const fuelSpec = SHUTTLE_FUELS[this.selectedFuel];
     const prevFailed = this.launchState.failed;
     const prevCompleted = this.launchState.completed;
 
-    this.launchState = stepLaunchPhysics(this.launchState, matSpec, dt);
+    this.launchState = stepLaunchPhysics(this.launchState, matSpec, dt, fuelSpec);
     const s = this.launchState;
 
     // Position shuttle vertically along launch ascent
@@ -963,6 +989,7 @@ export class SpaceGameEngine {
 
     if (this.hudSyncAccum >= 0.08) {
       this.hudSyncAccum = 0;
+      const costBreakdown = calculateLaunchCostBreakdown(matSpec, fuelSpec, s.fuelPercent);
       this.callbacks.onMission1Telemetry({
         phase: s.phase,
         altitudeKm: Number((s.altitudeM / 1000).toFixed(1)),
@@ -972,6 +999,11 @@ export class SpaceGameEngine {
         weightKn: Math.round(s.weightN / 1000),
         vibration: s.vibration,
         failed: s.failed,
+        fuelName: fuelSpec.name,
+        materialCostMillions: costBreakdown.materialCostMillions,
+        fuelCostMillions: costBreakdown.fuelTankCostMillions,
+        fuelBurnCostMillions: costBreakdown.fuelBurnCostMillions,
+        totalCostMillions: costBreakdown.totalLaunchCostMillions,
       });
     }
 
@@ -980,6 +1012,8 @@ export class SpaceGameEngine {
       this.audio.playMissionFailed();
       this.callbacks.onMission1Failed();
     } else if (!prevCompleted && s.completed) {
+      const costBreakdown = calculateLaunchCostBreakdown(matSpec, fuelSpec, s.fuelPercent);
+      this.lastLaunchFuelBurnCostMillions = costBreakdown.fuelBurnCostMillions;
       this.callbacks.onMission1Complete();
     }
   }
@@ -1126,8 +1160,14 @@ export class SpaceGameEngine {
       this.audio.playMissionFailed();
       this.callbacks.onMission2Failed();
     } else if (!prevCompleted && this.flightState.completed) {
+      const fuelSpec = SHUTTLE_FUELS[this.selectedFuel];
       const stats: CompletedMissionStats = {
         material: this.selectedMaterial,
+        fuelName: fuelSpec.name,
+        materialCostMillions: matSpec.materialCostMillions,
+        fuelCostMillions: fuelSpec.fuelCostMillions,
+        fuelBurnCostMillions: this.lastLaunchFuelBurnCostMillions,
+        totalCostMillions: Number((matSpec.materialCostMillions + fuelSpec.fuelCostMillions).toFixed(1)),
         flightDurationSec: Math.round(this.flightState.elapsedSec),
         obstaclesAvoided: this.flightState.obstaclesAvoided,
         shieldHitsTaken: 3 - this.flightState.shieldHitsRemaining,

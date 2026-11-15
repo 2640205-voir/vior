@@ -14,6 +14,7 @@ const DEFAULT_PROGRESS: GameProgress = {
   missionsCompleted: 0,
   bestFlightTime: null,
   lastMaterial: 'TITANIUM',
+  lastFuel: 'STANDARD_LOX',
   part2CompletedCount: 0,
 };
 
@@ -74,6 +75,12 @@ export function loadProgress(): GameProgress {
         parsed.lastMaterial === 'IRON'
           ? parsed.lastMaterial
           : DEFAULT_PROGRESS.lastMaterial,
+      lastFuel:
+        parsed.lastFuel === 'STANDARD_LOX' ||
+        parsed.lastFuel === 'CRYO_LH2' ||
+        parsed.lastFuel === 'HYPER_PROP'
+          ? parsed.lastFuel
+          : DEFAULT_PROGRESS.lastFuel,
       part2CompletedCount:
         typeof parsed.part2CompletedCount === 'number' && parsed.part2CompletedCount >= 0
           ? parsed.part2CompletedCount

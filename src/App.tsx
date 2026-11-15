@@ -6,12 +6,14 @@ import { MissionHUD } from './components/MissionHUD';
 import { Modals } from './components/Modals';
 import { PlanetSurvivalHUD } from './components/PlanetSurvivalHUD';
 import { SpaceAudioEngine } from './game/audio';
+import { SHUTTLE_FUELS, SHUTTLE_MATERIALS } from './game/materials';
 import { MISSION2_DURATION_SEC, MOON_INITIAL_DISTANCE_KM } from './game/physics';
 import { loadProgress, loadSettings, saveProgress, saveSettings } from './game/storage';
 import { SpaceGameEngine, type EngineCallbacks } from './three/SpaceGameEngine';
 import type {
   CompletedMissionStats,
   FlightInputState,
+  FuelId,
   GameProgress,
   GameScreen,
   GameSettings,
@@ -31,6 +33,12 @@ const INITIAL_M1: Mission1Telemetry = {
   weightKn: 0,
   vibration: 0,
   failed: false,
+  fuelName: SHUTTLE_FUELS.STANDARD_LOX.name,
+  materialCostMillions: SHUTTLE_MATERIALS.TITANIUM.materialCostMillions,
+  fuelCostMillions: SHUTTLE_FUELS.STANDARD_LOX.fuelCostMillions,
+  fuelBurnCostMillions: 0,
+  totalCostMillions:
+    SHUTTLE_MATERIALS.TITANIUM.materialCostMillions + SHUTTLE_FUELS.STANDARD_LOX.fuelCostMillions,
 };
 
 const INITIAL_M2: Mission2Telemetry = {
@@ -63,6 +71,7 @@ export default function App() {
   const [settings, setSettings] = useState<GameSettings>(() => loadSettings());
   const [progress, setProgress] = useState<GameProgress>(() => loadProgress());
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialId>(() => loadProgress().lastMaterial);
+  const [selectedFuel, setSelectedFuel] = useState<FuelId>(() => loadProgress().lastFuel);
 
   const [screen, setScreen] = useState<GameScreen>('loading');
   const [modal, setModal] = useState<ModalType>('none');
@@ -129,6 +138,17 @@ export default function App() {
     });
   }, []);
 
+  const handleSelectFuel = useCallback((id: FuelId) => {
+    audioRef.current?.playUiClick();
+    setSelectedFuel(id);
+    engineRef.current?.setFuel(id);
+    setProgress((prev) => {
+      const next = { ...prev, lastFuel: id };
+      saveProgress(next);
+      return next;
+    });
+  }, []);
+
   const startCustomization = useCallback(() => {
     audioRef.current?.init();
     audioRef.current?.playUiClick();
@@ -159,12 +179,21 @@ export default function App() {
     setMission1Failed(false);
     setMission2Failed(false);
     setMissionCompleteStats(null);
-    setMission1Telemetry(INITIAL_M1);
+    const matSpec = SHUTTLE_MATERIALS[selectedMaterial];
+    const fuelSpec = SHUTTLE_FUELS[selectedFuel];
+    setMission1Telemetry({
+      ...INITIAL_M1,
+      fuelName: fuelSpec.name,
+      materialCostMillions: matSpec.materialCostMillions,
+      fuelCostMillions: fuelSpec.fuelCostMillions,
+      fuelBurnCostMillions: 0,
+      totalCostMillions: matSpec.materialCostMillions + fuelSpec.fuelCostMillions,
+    });
     setModal('none');
     setScreen('mission1');
     engineRef.current?.setPaused(false);
     engineRef.current?.startMission1();
-  }, []);
+  }, [selectedMaterial, selectedFuel]);
 
   const launchMission2 = useCallback(() => {
     audioRef.current?.init();
@@ -299,7 +328,8 @@ export default function App() {
           onMission3Complete: (s) => callbacksRef.current.onMission3Complete(s),
         },
         settings.quality,
-        selectedMaterial
+        selectedMaterial,
+        selectedFuel
       );
       engineRef.current = engine;
 
@@ -517,7 +547,9 @@ export default function App() {
       {screen === 'customization' && (
         <CustomizationOverlay
           selectedMaterial={selectedMaterial}
+          selectedFuel={selectedFuel}
           onSelectMaterial={handleSelectMaterial}
+          onSelectFuel={handleSelectFuel}
           onLaunch={launchMission1}
           onBack={goMainMenu}
         />
